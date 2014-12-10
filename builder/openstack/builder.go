@@ -105,7 +105,11 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 			SSHWaitTimeout: b.config.SSHTimeout(),
 		},
 		&common.StepProvision{},
-		&stepCreateImage{},
+	}
+
+	if !b.config.PackerDryRun {
+		steps = append(steps,
+			&stepCreateImage{})
 	}
 
 	// Run!
