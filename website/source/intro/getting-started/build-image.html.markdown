@@ -16,7 +16,7 @@ with Redis pre-installed. This is just an example. Packer can create images
 for [many platforms](/intro/platforms.html) with anything pre-installed.
 
 If you don't have an AWS account, [create one now](http://aws.amazon.com/free/).
-For the example, we'll use a "t1.micro" instance to build our image, which
+For the example, we'll use a "t2.micro" instance to build our image, which
 qualifies under the AWS [free-tier](http://aws.amazon.com/free/), meaning
 it will be free. If you already have an AWS account, you may be charged some
 amount of money, but it shouldn't be more than a few cents.
@@ -54,7 +54,7 @@ briefly. Create a file `example.json` and fill it with the following contents:
     "access_key": "{{user `aws_access_key`}}",
     "secret_key": "{{user `aws_secret_key`}}",
     "region": "us-east-1",
-    "source_ami": "ami-3d50120d",
+    "source_ami": "ami-9eaa1cf6",
     "instance_type": "t2.micro",
     "ssh_username": "ubuntu",
     "ami_name": "packer-example {{timestamp}}"
