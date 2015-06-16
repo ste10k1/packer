@@ -106,9 +106,12 @@ each category, the available options are alphabetized and described.
 
 * `guest_additions_mode` (string) - The method by which guest additions
   are made available to the guest for installation. Valid options are
-  "upload", "attach", or "disable". The functions of each of these should be
-  self-explanatory. The default value is "upload". If "disable" is used,
-  guest additions won't be downloaded, either.
+  "upload", "attach", or "disable". If the mode is "attach" the guest
+  additions ISO will be attached as a CD device to the virtual machine.
+  If the mode is "upload" the guest additions ISO will be uploaded to
+  the path specified by `guest_additions_path`. The default value is
+  "upload". If "disable" is used, guest additions won't be downloaded,
+  either.
 
 * `guest_additions_path` (string) - The path on the guest virtual machine
   where the VirtualBox guest additions ISO will be uploaded. By default this
@@ -176,9 +179,11 @@ each category, the available options are alphabetized and described.
   By default this is "output-BUILDNAME" where "BUILDNAME" is the name
   of the build.
 
-* `shutdown_command` (string) - The command to use to gracefully shut down
-  the machine once all the provisioning is done. By default this is an empty
-  string, which tells Packer to just forcefully shut down the machine.
+* `shutdown_command` (string) - The command to use to gracefully shut down the machine once all
+  the provisioning is done. By default this is an empty string, which tells Packer to just
+  forcefully shut down the machine unless a shutdown command takes place inside script so this may
+  safely be omitted. If one or more scripts require a reboot it is suggested to leave this blank
+  since reboots may fail and specify the final shutdown command in your last script.
 
 * `shutdown_timeout` (string) - The amount of time to wait after executing
   the `shutdown_command` for the virtual machine to actually shut down.

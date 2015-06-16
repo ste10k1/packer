@@ -3,16 +3,18 @@ package ssh
 import (
 	"bufio"
 	"bytes"
-	"code.google.com/p/go.crypto/ssh"
 	"errors"
 	"fmt"
 	"github.com/mitchellh/packer/packer"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 	"io"
 	"io/ioutil"
 	"log"
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 )
 
@@ -33,8 +35,8 @@ type Config struct {
 	// case an error occurs.
 	Connection func() (net.Conn, error)
 
-	// NoPty, if true, will not request a pty from the remote end.
-	NoPty bool
+	// Pty, if true, will request a pty from the remote end.
+	Pty bool
 }
 
 // Creates a new packer.Communicator implementation over SSH. This takes
@@ -65,7 +67,7 @@ func (c *comm) Start(cmd *packer.RemoteCmd) (err error) {
 	session.Stdout = cmd.Stdout
 	session.Stderr = cmd.Stderr
 
-	if !c.config.NoPty {
+	if c.config.Pty {
 		// Request a PTY
 		termModes := ssh.TerminalModes{
 			ssh.ECHO:          0,     // do not echo
@@ -170,8 +172,57 @@ func (c *comm) UploadDir(dst string, src string, excl []string) error {
 	return c.scpSession("scp -rvt "+dst, scpFunc)
 }
 
-func (c *comm) Download(string, io.Writer) error {
-	panic("not implemented yet")
+func (c *comm) Download(path string, output io.Writer) error {
+	scpFunc := func(w io.Writer, stdoutR *bufio.Reader) error {
+		fmt.Fprint(w, "\x00")
+
+		// read file info
+		fi, err := stdoutR.ReadString('\n')
+		if err != nil {
+			return err
+		}
+
+		if len(fi) < 0 {
+			return fmt.Errorf("empty response from server")
+		}
+
+		switch fi[0] {
+		case '\x01', '\x02':
+			return fmt.Errorf("%s", fi[1:len(fi)])
+		case 'C':
+		case 'D':
+			return fmt.Errorf("remote file is directory")
+		default:
+			return fmt.Errorf("unexpected server response (%x)", fi[0])
+		}
+
+		var mode string
+		var size int64
+
+		n, err := fmt.Sscanf(fi, "%6s %d ", &mode, &size)
+		if err != nil || n != 2 {
+			return fmt.Errorf("can't parse server response (%s)", fi)
+		}
+		if size < 0 {
+			return fmt.Errorf("negative file size")
+		}
+
+		fmt.Fprint(w, "\x00")
+
+		if _, err := io.CopyN(output, stdoutR, size); err != nil {
+			return err
+		}
+
+		fmt.Fprint(w, "\x00")
+
+		if err := checkSCPStatus(stdoutR); err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	return c.scpSession("scp -vf "+strconv.Quote(path), scpFunc)
 }
 
 func (c *comm) newSession() (session *ssh.Session, err error) {
@@ -226,7 +277,56 @@ func (c *comm) reconnect() (err error) {
 	if sshConn != nil {
 		c.client = ssh.NewClient(sshConn, sshChan, req)
 	}
+	c.connectToAgent()
 
+	return
+}
+
+func (c *comm) connectToAgent() {
+	if c.client == nil {
+		return
+	}
+
+	// open connection to the local agent
+	socketLocation := os.Getenv("SSH_AUTH_SOCK")
+	if socketLocation == "" {
+		log.Printf("[INFO] no local agent socket, will not connect agent")
+		return
+	}
+	agentConn, err := net.Dial("unix", socketLocation)
+	if err != nil {
+		log.Printf("[ERROR] could not connect to local agent socket: %s", socketLocation)
+		return
+	}
+
+	// create agent and add in auth
+	forwardingAgent := agent.NewClient(agentConn)
+	if forwardingAgent == nil {
+		log.Printf("[ERROR] Could not create agent client")
+		agentConn.Close()
+		return
+	}
+
+	// add callback for forwarding agent to SSH config
+	// XXX - might want to handle reconnects appending multiple callbacks
+	auth := ssh.PublicKeysCallback(forwardingAgent.Signers)
+	c.config.SSHConfig.Auth = append(c.config.SSHConfig.Auth, auth)
+	agent.ForwardToAgent(c.client, forwardingAgent)
+
+	// Setup a session to request agent forwarding
+	session, err := c.newSession()
+	if err != nil {
+		return
+	}
+	defer session.Close()
+
+	err = agent.RequestAgentForwarding(session)
+	if err != nil {
+		log.Printf("[ERROR] RequestAgentForwarding: %#v", err)
+		return
+	}
+
+	log.Printf("[INFO] agent forwarding enabled")
 	return
 }
 
