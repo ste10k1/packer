@@ -91,13 +91,8 @@ func InstanceStateRefreshFunc(conn *ec2.EC2, instanceId string) StateRefreshFunc
 			return nil, "", nil
 		}
 
-<<<<<<< HEAD
-		i := &resp.Reservations[0].Instances[0]
-		return i, i.State.Name, nil
-=======
 		i := resp.Reservations[0].Instances[0]
 		return i, *i.State.Name, nil
->>>>>>> master
 	}
 }
 
