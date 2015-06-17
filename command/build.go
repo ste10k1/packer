@@ -24,7 +24,7 @@ func (c BuildCommand) Run(args []string) int {
 	flags.Usage = func() { c.Ui.Say(c.Help()) }
 	flags.BoolVar(&cfgColor, "color", true, "")
 	flags.BoolVar(&cfgDebug, "debug", false, "")
-	flags.BoolVar(&cfgDebug, "dry-run", false, "")
+	flags.BoolVar(&cfgDryRun, "dry-run", false, "")
 	flags.BoolVar(&cfgForce, "force", false, "")
 	flags.BoolVar(&cfgParallel, "parallel", true, "")
 	if err := flags.Parse(args); err != nil {
@@ -71,7 +71,7 @@ func (c BuildCommand) Run(args []string) int {
 	}
 
 	if cfgDryRun {
-		env.Ui().Say("Dry-run mode enabled. Images will be provisionned but not generated.")
+		c.Ui.Say("Dry-run mode enabled. Images will be provisionned but not generated.")
 	}
 
 	// Compile all the UIs for the builds
