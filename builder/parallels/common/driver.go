@@ -44,6 +44,9 @@ type Driver interface {
 	// Send scancodes to the vm using the prltype python script.
 	SendKeyScanCodes(string, ...string) error
 
+	// Apply default сonfiguration settings to the virtual machine
+	SetDefaultConfiguration(string) error
+
 	// Finds the MAC address of the NIC nic0
 	Mac(string) (string, error)
 
@@ -55,6 +58,7 @@ func NewDriver() (Driver, error) {
 	var drivers map[string]Driver
 	var prlctlPath string
 	var supportedVersions []string
+	dhcp_lease_file := "/Library/Preferences/Parallels/parallels_dhcp_leases"
 
 	if runtime.GOOS != "darwin" {
 		return nil, fmt.Errorf(
@@ -72,13 +76,21 @@ func NewDriver() (Driver, error) {
 	log.Printf("prlctl path: %s", prlctlPath)
 
 	drivers = map[string]Driver{
+		"11": &Parallels10Driver{
+			Parallels9Driver: Parallels9Driver{
+				PrlctlPath:      prlctlPath,
+				dhcp_lease_file: dhcp_lease_file,
+			},
+		},
 		"10": &Parallels10Driver{
 			Parallels9Driver: Parallels9Driver{
-				PrlctlPath: prlctlPath,
+				PrlctlPath:      prlctlPath,
+				dhcp_lease_file: dhcp_lease_file,
 			},
 		},
 		"9": &Parallels9Driver{
-			PrlctlPath: prlctlPath,
+			PrlctlPath:      prlctlPath,
+			dhcp_lease_file: dhcp_lease_file,
 		},
 	}
 

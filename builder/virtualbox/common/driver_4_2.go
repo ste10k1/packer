@@ -22,7 +22,7 @@ func (d *VBox42Driver) CreateSATAController(vmName string, name string) error {
 	}
 
 	portCountArg := "--sataportcount"
-	if strings.HasPrefix(version, "4.3") {
+	if strings.HasPrefix(version, "4.3") || strings.HasPrefix(version, "5.") {
 		portCountArg = "--portcount"
 	}
 
@@ -31,6 +31,18 @@ func (d *VBox42Driver) CreateSATAController(vmName string, name string) error {
 		"--name", name,
 		"--add", "sata",
 		portCountArg, "1",
+	}
+
+	return d.VBoxManage(command...)
+}
+
+func (d *VBox42Driver) CreateSCSIController(vmName string, name string) error {
+
+	command := []string{
+		"storagectl", vmName,
+		"--name", name,
+		"--add", "scsi",
+		"--controller", "LSILogic",
 	}
 
 	return d.VBoxManage(command...)

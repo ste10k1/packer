@@ -6,15 +6,13 @@ import (
 	"log"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/mitchellh/osext"
 	"github.com/mitchellh/packer/packer"
 	"github.com/mitchellh/packer/packer/plugin"
 )
-
-// EnvConfig is the global EnvironmentConfig we use to initialize the CLI.
-var EnvConfig packer.EnvironmentConfig
 
 type config struct {
 	DisableCheckpoint          bool `json:"disable_checkpoint"`
@@ -49,11 +47,13 @@ func decodeConfig(r io.Reader, c *config) error {
 
 // Discover discovers plugins.
 //
-// This looks in the directory of the executable and the CWD, in that
-// order for priority.
+// Search the directory of the executable, then the plugins directory, and
+// finally the CWD, in that order. Any conflicts will overwrite previously
+// found plugins, in that order.
+// Hence, the priority order is the reverse of the search order - i.e., the
+// CWD has the highest priority.
 func (c *config) Discover() error {
-	// Next, look in the same directory as the executable. Any conflicts
-	// will overwrite those found in our current directory.
+	// First, look in the same directory as the executable.
 	exePath, err := osext.Executable()
 	if err != nil {
 		log.Printf("[ERR] Error loading exe directory: %s", err)
@@ -63,7 +63,7 @@ func (c *config) Discover() error {
 		}
 	}
 
-	// Look in the plugins directory
+	// Next, look in the plugins directory.
 	dir, err := ConfigDir()
 	if err != nil {
 		log.Printf("[ERR] Error loading config directory: %s", err)
@@ -73,7 +73,7 @@ func (c *config) Discover() error {
 		}
 	}
 
-	// Look in the cwd.
+	// Last, look in the CWD.
 	if err := c.discover("."); err != nil {
 		return err
 	}
@@ -173,6 +173,15 @@ func (c *config) discoverSingle(glob string, m *map[string]string) error {
 	for _, match := range matches {
 		file := filepath.Base(match)
 
+		// One Windows, ignore any plugins that don't end in .exe.
+		// We could do a full PATHEXT parse, but this is probably good enough.
+		if runtime.GOOS == "windows" && strings.ToLower(filepath.Ext(file)) != ".exe" {
+			log.Printf(
+				"[DEBUG] Ignoring plugin match %s, no exe extension",
+				match)
+			continue
+		}
+
 		// If the filename has a ".", trim up to there
 		if idx := strings.Index(file, "."); idx >= 0 {
 			file = file[:idx]
@@ -180,7 +189,7 @@ func (c *config) discoverSingle(glob string, m *map[string]string) error {
 
 		// Look for foo-bar-baz. The plugin name is "baz"
 		plugin := file[len(prefix):]
-		log.Printf("[DEBUG] Discoverd plugin: %s = %s", plugin, match)
+		log.Printf("[DEBUG] Discovered plugin: %s = %s", plugin, match)
 		(*m)[plugin] = match
 	}
 

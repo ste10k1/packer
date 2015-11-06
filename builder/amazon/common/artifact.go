@@ -2,12 +2,13 @@ package common
 
 import (
 	"fmt"
-	"github.com/mitchellh/goamz/aws"
-	"github.com/mitchellh/goamz/ec2"
-	"github.com/mitchellh/packer/packer"
 	"log"
 	"sort"
 	"strings"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/mitchellh/packer/packer"
 )
 
 // Artifact is an artifact implementation that contains built AMIs.
@@ -53,7 +54,12 @@ func (a *Artifact) String() string {
 }
 
 func (a *Artifact) State(name string) interface{} {
-	return nil
+	switch name {
+	case "atlas.artifact.metadata":
+		return a.stateAtlasMetadata()
+	default:
+		return nil
+	}
 }
 
 func (a *Artifact) Destroy() error {
@@ -61,8 +67,17 @@ func (a *Artifact) Destroy() error {
 
 	for region, imageId := range a.Amis {
 		log.Printf("Deregistering image ID (%s) from region (%s)", imageId, region)
-		regionconn := ec2.New(a.Conn.Auth, aws.Regions[region])
-		if _, err := regionconn.DeregisterImage(imageId); err != nil {
+
+		regionConfig := &aws.Config{
+			Credentials: a.Conn.Config.Credentials,
+			Region:      aws.String(region),
+		}
+		regionConn := ec2.New(regionConfig)
+
+		input := &ec2.DeregisterImageInput{
+			ImageId: &imageId,
+		}
+		if _, err := regionConn.DeregisterImage(input); err != nil {
 			errors = append(errors, err)
 		}
 
@@ -73,9 +88,19 @@ func (a *Artifact) Destroy() error {
 		if len(errors) == 1 {
 			return errors[0]
 		} else {
-			return &packer.MultiError{errors}
+			return &packer.MultiError{Errors: errors}
 		}
 	}
 
 	return nil
+}
+
+func (a *Artifact) stateAtlasMetadata() interface{} {
+	metadata := make(map[string]string)
+	for region, imageId := range a.Amis {
+		k := fmt.Sprintf("region.%s", region)
+		metadata[k] = imageId
+	}
+
+	return metadata
 }

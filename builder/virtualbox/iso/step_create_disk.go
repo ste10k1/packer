@@ -15,7 +15,7 @@ import (
 type stepCreateDisk struct{}
 
 func (s *stepCreateDisk) Run(state multistep.StateBag) multistep.StepAction {
-	config := state.Get("config").(*config)
+	config := state.Get("config").(*Config)
 	driver := state.Get("driver").(vboxcommon.Driver)
 	ui := state.Get("ui").(packer.Ui)
 	vmName := state.Get("vmName").(string)
@@ -63,10 +63,23 @@ func (s *stepCreateDisk) Run(state multistep.StateBag) multistep.StepAction {
 		}
 	}
 
+	if config.HardDriveInterface == "scsi" {
+		if err := driver.CreateSCSIController(vmName, "SCSI Controller"); err != nil {
+			err := fmt.Errorf("Error creating disk controller: %s", err)
+			state.Put("error", err)
+			ui.Error(err.Error())
+			return multistep.ActionHalt
+		}
+	}
+
 	// Attach the disk to the controller
 	controllerName := "IDE Controller"
 	if config.HardDriveInterface == "sata" {
 		controllerName = "SATA Controller"
+	}
+
+	if config.HardDriveInterface == "scsi" {
+		controllerName = "SCSI Controller"
 	}
 
 	command = []string{

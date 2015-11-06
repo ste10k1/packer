@@ -28,6 +28,9 @@ const (
 	// force build is enabled.
 	ForceConfigKey = "packer_force"
 
+	// TemplatePathKey is the path to the template that configured this build
+	TemplatePathKey = "packer_template_path"
+
 	// This key contains a map[string]string of the user variables for
 	// template processing.
 	UserVariablesConfigKey = "packer_user_variables"
@@ -88,6 +91,7 @@ type coreBuild struct {
 	hooks          map[string][]Hook
 	postProcessors [][]coreBuildPostProcessor
 	provisioners   []coreBuildProvisioner
+	templatePath   string
 	variables      map[string]string
 
 	debug         bool
@@ -137,6 +141,7 @@ func (b *coreBuild) Prepare() (warn []string, err error) {
 		DebugConfigKey:         b.debug,
 		DryRunConfigKey:        b.dryRun,
 		ForceConfigKey:         b.force,
+		TemplatePathKey:        b.templatePath,
 		UserVariablesConfigKey: b.variables,
 	}
 
