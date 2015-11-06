@@ -35,7 +35,8 @@ type Builder struct {
 
 func (b *Builder) Prepare(raws ...interface{}) ([]string, error) {
 	err := config.Decode(&b.config, &config.DecodeOpts{
-		Interpolate: true,
+		Interpolate:        true,
+		InterpolateContext: &b.config.ctx,
 	}, raws...)
 	if err != nil {
 		return nil, err
@@ -74,8 +75,10 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 			Flavor: b.config.Flavor,
 		},
 		&StepKeyPair{
-			Debug:        b.config.PackerDebug,
-			DebugKeyPath: fmt.Sprintf("os_%s.pem", b.config.PackerBuildName),
+			Debug:          b.config.PackerDebug,
+			DebugKeyPath:   fmt.Sprintf("os_%s.pem", b.config.PackerBuildName),
+			KeyPairName:    b.config.SSHKeyPairName,
+			PrivateKeyFile: b.config.RunConfig.Comm.SSHPrivateKey,
 		},
 		&StepRunSourceServer{
 			Name:             b.config.ImageName,
@@ -101,11 +104,11 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 			SSHConfig: SSHConfig(b.config.RunConfig.Comm.SSHUsername),
 		},
 		&common.StepProvision{},
+		&StepStopServer{},
 	}
 
 	if !b.config.PackerDryRun {
 		steps = append(steps,
-            &StepStopServer{},
 			&stepCreateImage{})
 	}
 

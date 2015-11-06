@@ -35,7 +35,7 @@ type Config struct {
 	TypeOverride bool   `mapstructure:"artifact_type_override"`
 	Metadata     map[string]string
 
-	ServerAddr string `mapstructure:"server_address"`
+	ServerAddr string `mapstructure:"atlas_url"`
 	Token      string
 
 	// This shouldn't ever be set outside of unit tests.
@@ -53,7 +53,8 @@ type PostProcessor struct {
 
 func (p *PostProcessor) Configure(raws ...interface{}) error {
 	err := config.Decode(&p.config, &config.DecodeOpts{
-		Interpolate: true,
+		Interpolate:        true,
+		InterpolateContext: &p.config.ctx,
 		InterpolateFilter: &interpolate.RenderFilter{
 			Exclude: []string{},
 		},

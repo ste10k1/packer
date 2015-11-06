@@ -41,7 +41,7 @@ type Config struct {
 	X509KeyPath         string `mapstructure:"x509_key_path"`
 	X509UploadPath      string `mapstructure:"x509_upload_path"`
 
-	ctx *interpolate.Context
+	ctx interpolate.Context
 }
 
 type Builder struct {
@@ -50,27 +50,29 @@ type Builder struct {
 }
 
 func (b *Builder) Prepare(raws ...interface{}) ([]string, error) {
-	b.config.ctx = &interpolate.Context{Funcs: awscommon.TemplateFuncs}
+	configs := make([]interface{}, len(raws)+1)
+	configs[0] = map[string]interface{}{
+		"bundle_prefix": "image-{{timestamp}}",
+	}
+	copy(configs[1:], raws)
+
+	b.config.ctx.Funcs = awscommon.TemplateFuncs
 	err := config.Decode(&b.config, &config.DecodeOpts{
 		Interpolate:        true,
-		InterpolateContext: b.config.ctx,
+		InterpolateContext: &b.config.ctx,
 		InterpolateFilter: &interpolate.RenderFilter{
 			Exclude: []string{
 				"bundle_upload_command",
 				"bundle_vol_command",
 			},
 		},
-	}, raws...)
+	}, configs...)
 	if err != nil {
 		return nil, err
 	}
 
 	if b.config.BundleDestination == "" {
 		b.config.BundleDestination = "/tmp"
-	}
-
-	if b.config.BundlePrefix == "" {
-		b.config.BundlePrefix = "image-{{timestamp}}"
 	}
 
 	if b.config.BundleUploadCommand == "" {
@@ -114,10 +116,10 @@ func (b *Builder) Prepare(raws ...interface{}) ([]string, error) {
 
 	// Accumulate any errors
 	var errs *packer.MultiError
-	errs = packer.MultiErrorAppend(errs, b.config.AccessConfig.Prepare(b.config.ctx)...)
-	errs = packer.MultiErrorAppend(errs, b.config.BlockDevices.Prepare(b.config.ctx)...)
-	errs = packer.MultiErrorAppend(errs, b.config.AMIConfig.Prepare(b.config.ctx)...)
-	errs = packer.MultiErrorAppend(errs, b.config.RunConfig.Prepare(b.config.ctx)...)
+	errs = packer.MultiErrorAppend(errs, b.config.AccessConfig.Prepare(&b.config.ctx)...)
+	errs = packer.MultiErrorAppend(errs, b.config.BlockDevices.Prepare(&b.config.ctx)...)
+	errs = packer.MultiErrorAppend(errs, b.config.AMIConfig.Prepare(&b.config.ctx)...)
+	errs = packer.MultiErrorAppend(errs, b.config.RunConfig.Prepare(&b.config.ctx)...)
 
 	if b.config.AccountId == "" {
 		errs = packer.MultiErrorAppend(errs, errors.New("account_id is required"))
@@ -204,6 +206,7 @@ func (b *Builder) Run(ui packer.Ui, hook packer.Hook, cache packer.Cache) (packe
 			Tags:                     b.config.RunTags,
 		},
 		&awscommon.StepGetPassword{
+			Debug:   b.config.PackerDebug,
 			Comm:    &b.config.RunConfig.Comm,
 			Timeout: b.config.WindowsPasswordTimeout,
 		},

@@ -42,7 +42,8 @@ type Config struct {
 func NewConfig(raws ...interface{}) (*Config, []string, error) {
 	c := new(Config)
 	err := config.Decode(c, &config.DecodeOpts{
-		Interpolate: true,
+		Interpolate:        true,
+		InterpolateContext: &c.ctx,
 		InterpolateFilter: &interpolate.RenderFilter{
 			Exclude: []string{
 				"boot_command",
@@ -65,8 +66,10 @@ func NewConfig(raws ...interface{}) (*Config, []string, error) {
 	if c.GuestAdditionsPath == "" {
 		c.GuestAdditionsPath = "VBoxGuestAdditions.iso"
 	}
+
 	if c.VMName == "" {
-		c.VMName = fmt.Sprintf("packer-%s-{{timestamp}}", c.PackerBuildName)
+		c.VMName = fmt.Sprintf(
+			"packer-%s-%d", c.PackerBuildName, interpolate.InitTime.Unix())
 	}
 
 	// Prepare the errors

@@ -41,13 +41,14 @@ type Config struct {
 	account         accountFile
 	privateKeyBytes []byte
 	stateTimeout    time.Duration
-	ctx             *interpolate.Context
+	ctx             interpolate.Context
 }
 
 func NewConfig(raws ...interface{}) (*Config, []string, error) {
 	c := new(Config)
 	err := config.Decode(c, &config.DecodeOpts{
-		Interpolate: true,
+		Interpolate:        true,
+		InterpolateContext: &c.ctx,
 		InterpolateFilter: &interpolate.RenderFilter{
 			Exclude: []string{
 				"run_command",
@@ -57,6 +58,8 @@ func NewConfig(raws ...interface{}) (*Config, []string, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+
+	var errs *packer.MultiError
 
 	// Set defaults.
 	if c.Network == "" {
@@ -72,7 +75,12 @@ func NewConfig(raws ...interface{}) (*Config, []string, error) {
 	}
 
 	if c.ImageName == "" {
-		c.ImageName = "packer-{{timestamp}}"
+		img, err := interpolate.Render("packer-{{timestamp}}", nil)
+		if err != nil {
+			errs = packer.MultiErrorAppend(errs,
+				fmt.Errorf("Unable to parse image name: %s ", err))
+			c.ImageName = img
+		}
 	}
 
 	if c.InstanceName == "" {
@@ -95,7 +103,9 @@ func NewConfig(raws ...interface{}) (*Config, []string, error) {
 		c.Comm.SSHUsername = "root"
 	}
 
-	var errs *packer.MultiError
+	if es := c.Comm.Prepare(&c.ctx); len(es) > 0 {
+		errs = packer.MultiErrorAppend(errs, es...)
+	}
 
 	// Process required parameters.
 	if c.ProjectId == "" {

@@ -32,7 +32,8 @@ type Provisioner struct {
 
 func (p *Provisioner) Prepare(raws ...interface{}) error {
 	err := config.Decode(&p.config, &config.DecodeOpts{
-		Interpolate: true,
+		Interpolate:        true,
+		InterpolateContext: &p.config.ctx,
 		InterpolateFilter: &interpolate.RenderFilter{
 			Exclude: []string{},
 		},
@@ -46,10 +47,6 @@ func (p *Provisioner) Prepare(raws ...interface{}) error {
 	}
 
 	var errs *packer.MultiError
-	if _, err := os.Stat(p.config.Source); err != nil {
-		errs = packer.MultiErrorAppend(errs,
-			fmt.Errorf("Bad source '%s': %s", p.config.Source, err))
-	}
 
 	if p.config.Direction != "download" && p.config.Direction != "upload" {
 		errs = packer.MultiErrorAppend(errs,
